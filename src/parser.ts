@@ -1,97 +1,288 @@
 import { Token , Tokenizer , TokenType} from './tokenizer.js';
 
-class ExpectedNodes {
-    private nodes: Node[];
-    constructor(nodes: Node[]) {
-        this.nodes = nodes;
+class ExpectedNode{
+    private node: Node;
+    constructor(node: Node) {
+        this.node = node;
     }
-    toBe(expectedTypes: NodeType[]): GettableNodes {
-        if (this.nodes.length !== expectedTypes.length) {
-            throw new Error(`Expected ${expectedTypes.length} nodes but got ${this.nodes.length}`);
-        }
-        for (let i = 0; i < this.nodes.length; i++) {
-            if (this.nodes[i].type !== expectedTypes[i]) {
-                throw new Error(`Expected node type ${expectedTypes[i]} but got ${this.nodes[i].type}`);
+    toBe(expectedType : NodeType) : GettableNode {
+        if(expectedType == NodeType.Expression){
+            if(this.node.type != 'plus' && this.node.type != 'fraction' && this.node.type != 'identifier'){
+                throw new Error(`Expected node type to be one of 'plus', 'fraction', 'identifier' but got ${this.node.type}`);
             }
         }
-        return new GettableNodes(this.nodes);
+        else if(this.node.type != expectedType) throw new Error(`Expected node type ${expectedType} but got ${this.node.type}`);
+        return new GettableNode(this.node);
     }
 }
 
-class GettableNodes {
-    private nodes: Node[];
-    constructor(nodes: Node[]) {
-        this.nodes = nodes;
+class GettableNode {
+    private node: Node;
+    constructor(node: Node) {
+        this.node = node;
     }
-    get(): Node[] {
-        return this.nodes;
+    get(): Node {
+        return this.node;
     }
 }
 
 export class Parser {
     private tokens: Token[]
+    private position: number;
     constructor(tokens: Token[]) {
-        this.tokens = tokens;
+        this.tokens = Tokenizer.expectMany(tokens).toNotHave(undefined).get();
+        this.position = 0;
     }
-    public static expect(tokens: Token[]): ExpectedNodes{
-        return new ExpectedNodes(new Parser(tokens).parse());
+    public static expect(tokens: Token[],parseFn: (tokens:Token[]) => Node ): ExpectedNode{
+        if(tokens.length == 0){
+            throw new Error('Nothing to expect');
+        }
+        return new ExpectedNode(parseFn(tokens));
     }
 
-    parse(begin = 0 , end = this.tokens.length): Node[] {
-        const nodes: Node[] = [];
-        let position = begin;
-        while (position < this.tokens.length) {
-            const token = this.tokens[position];
-            if(token.type == 'equals'){
-                let eqnode: EquationNode = {
-                    type: 'equation',
-                    lhs: nodes.pop()!,
-                    rhs: this.parse(position + 1, Tokenizer.find(this.tokens,'newline',position))[0]
+
+    // Parse should return one Root Node that has Children
+
+    public parse(): RootNode {
+        let children: Node[] = [];
+        let accumulatedTokens: Token[] = [];
+        let balance = 0;
+        while (this.position < this.tokens.length) {
+            let token = this.tokens[this.position];
+            if(token.type == 'close_paren'){
+                balance--;
+                if(balance < 0){
+                    throw new Error(`Unmatched closing parenthesis at position ${token.position}`);
                 }
-                nodes.push(eqnode);
-                position = Tokenizer.find(this.tokens,'newline',position); 
             }
-            else if(token.type == 'identifier' && token.value == 'sum'){
-                Tokenizer.expect(this.tokens[position + 1]).toBe(TokenType.Oparen)
-                let sumNodes: Node[] = Parser.expect(this.tokens.slice(position + 1,Tokenizer.find(this.tokens,'close_paren',position))).toBe([NodeType.Equation,NodeType.Expression,NodeType.Expression]).get()
-                let sumNode = {
-                    type: 'sum',
-                    start: sumNodes[0] as EquationNode,
-                    end: sumNodes[1] as ExpressionNode,
-                    body: sumNodes[2] as ExpressionNode
+            else if(token.type == 'open_paren'){
+                balance++;
+            }
+            else if(token.type == 'equals' && balance == 0){
+                // Flush any accumulated paragraph text before processing equation
+                if(accumulatedTokens.length > 0){
+                    const paragraphContent = accumulatedTokens.map(t => t.value).join('').trim();
+                    if(paragraphContent.length > 0){
+                        const paragraphNode: ParagraphNode = {
+                            type: 'paragraph',
+                            content: paragraphContent,
+                        }
+                        children.push(paragraphNode);
+                    }
+                    accumulatedTokens = [];
                 }
                 
-                nodes.push(sumNode);
-            }
-            else if(token.type == 'identifier'){
-                let pnode: ParagraphNode = {
-                    type: 'paragraph',
-                    content: ""
+                let line = [];
+                let j = this.position;
+                while(j >=0 && this.tokens[j].type != 'newline'){
+                    line.unshift(this.tokens[j]);
+                    j--;
                 }
-                let newlineCount = 0;
-                while(position < end && (this.tokens[position].type == 'identifier' || this.tokens[position].type == 'dot') && ){
-                    if(this.tokens[position].type == 'newline'){
-                        newlineCount++;
-                        if(newlineCount >= 2){
-                            break;
-                        } else {
-                            pnode.content += "\n";
+                let k = this.position+1;
+                while(k < this.tokens.length && this.tokens[k].type != 'newline'){
+                    line.push(this.tokens[k]);
+                    k++;
+                }
+                children.push(Parser.parseEquation(line));
+                this.position = k;
+            }
+            else if(token.type == 'newline'){ 
+                if(this.tokens[this.position + 1] && this.tokens[this.position + 1].type == 'newline'){
+                    // Double newline indicates new paragraph
+                    if(accumulatedTokens.length > 0){
+                        const paragraphContent = accumulatedTokens.map(t => t.value).join('').trim();
+                        const paragraphNode: ParagraphNode = {
+                            type: 'paragraph',
+                            content: paragraphContent,
                         }
+                        children.push(paragraphNode);
+                        accumulatedTokens = [];
                     }
-                    else{
-                        pnode.content += this.tokens[position].value;
-                        newlineCount = 0;
-                    }
-                    position++;
+                    // Skip the second newline to avoid empty paragraphs
+                    this.position++;
                 }
-                nodes.push(pnode);
             }
-            else{
-                position++;
+            else {
+                accumulatedTokens.push(token);
+            }
+            this.position++;
+        }
+        // Flush any trailing paragraph text
+        if (accumulatedTokens.length > 0) {
+            const paragraphContent = accumulatedTokens.map(t => t.value).join('').trim();
+            if (paragraphContent.length > 0) {
+                children.push({ type: 'paragraph', content: paragraphContent } as ParagraphNode);
             }
         }
-        return nodes;
+        return {
+            type: 'root',
+            children: children
+        };
     }
+
+    public static printNodes(nodes:Node[]):string{
+        let result = '';
+        for(const node of nodes){
+            result += node.type + ' ';
+        }
+        return result.trim();
+    }
+
+    public static printNode(node:Node, indent:string = ''):void {
+        const next = indent + '  ';
+        switch (node.type) {
+            case 'root': {
+                console.log(`${indent}root`);
+                const children = (node as RootNode).children || [];
+                for (const child of children) Parser.printNode(child, next);
+                break;
+            }
+            case 'sum': {
+                console.log(`${indent}sum`);
+                const n = node as SumNode;
+                console.log(`${next}start:`);
+                Parser.printNode(n.start, next + '  ');
+                console.log(`${next}end:`);
+                Parser.printNode(n.end, next + '  ');
+                console.log(`${next}body:`);
+                Parser.printNode(n.body, next + '  ');
+                break;
+            }
+            case 'fraction': {
+                console.log(`${indent}fraction`);
+                const n = node as FractionNode;
+                console.log(`${next}numerator:`);
+                Parser.printNode(n.numerator, next + '  ');
+                console.log(`${next}denominator:`);
+                Parser.printNode(n.denominator, next + '  ');
+                break;
+            }
+            case 'equation': {
+                console.log(`${indent}equation`);
+                const n = node as EquationNode;
+                console.log(`${next}lhs:`);
+                Parser.printNode(n.lhs, next + '  ');
+                console.log(`${next}rhs:`);
+                Parser.printNode(n.rhs, next + '  ');
+                break;
+            }
+            case 'plus': {
+                console.log(`${indent}plus`);
+                const n = node as PlusNode;
+                console.log(`${next}left:`);
+                Parser.printNode(n.left, next + '  ');
+                console.log(`${next}right:`);
+                Parser.printNode(n.right, next + '  ');
+                break;
+            }
+            case 'identifier': {
+                const n = node as IdentiferNode;
+                console.log(`${indent}identifier(${n.name})`);
+                break;
+            }
+            case 'paragraph': {
+                const n = node as ParagraphNode;
+                const content = (n.content || '').replace(/\r/g, '');
+                const preview = content.length > 80 ? content.slice(0, 77) + '...' : content;
+                console.log(`${indent}paragraph: "${preview}"`);
+                break;
+            }
+            default: {
+                console.log(`${indent}${node.type}`);
+                if (node.children) {
+                    for (const child of node.children) Parser.printNode(child, next);
+                }
+            }
+        }
+    }
+
+
+    private static  parseEquation(tokens:Token[]): EquationNode {
+        Tokenizer.printTokens(tokens);
+        console.log('------------------------')
+        let balance = 0;
+        for(let pos = 0; pos < tokens.length; pos++){
+            const token = tokens[pos];
+            if(token.type == 'open_paren'){
+                balance++;
+            }
+            else if(token.type == 'close_paren'){
+                balance--;
+            }
+            if(token.type == 'equals' && balance == 0){
+                let eqnode: EquationNode = {
+                    type: 'equation',
+                    lhs: Parser.parseExpression(tokens.slice(0,pos)),
+                    rhs: Parser.parseExpression(tokens.slice(pos + 1))
+                }
+                
+                return eqnode;
+            }
+        }
+        throw new Error('Could not parse tokens into equation node');
+    }
+    private static parseExpression(tokens:Token[]): ExpressionNode {
+        for(let pos = 0; pos < tokens.length; pos++){
+            const token = tokens[pos];
+            if(token.type == 'plus'){
+                let left = Parser.parseExpression(tokens.slice(0, pos));
+                let right = Parser.parseExpression(tokens.slice(pos + 1));
+                let plusNode: PlusNode = {
+                    type: 'plus',
+                    left: left,
+                    right: right,
+                }
+                return plusNode;
+            }
+            else if(token.type == 'equals'){
+                    let left = Parser.parseExpression(tokens.slice(0, pos));
+                    let right = Parser.parseExpression(tokens.slice(pos + 1));
+                    let eqNode: EquationNode = {
+                        type: 'equation',
+                        lhs: left,
+                        rhs: right,
+                    }
+                    return eqNode;
+                }
+            else if(token.type == 'identifier' && token.value == 'sum'){
+                Tokenizer.expect(tokens[pos + 1]).toBe(TokenType.Oparen);
+                let sumTokens = tokens.slice(pos + 2,Tokenizer.findMatchingCParen(tokens,pos+2))
+                let [startTokens,endTokens,bodyTokens] = Tokenizer.splitAtTopLevelCommas(sumTokens);
+                let startNode = Parser.parseExpression(startTokens);
+                let endNode = Parser.parseExpression(endTokens);
+                let bodyNode = Parser.parseExpression(bodyTokens);
+                let sumNode: SumNode = {
+                    type: 'sum',
+                    start: startNode,
+                    end: endNode,
+                    body: bodyNode,
+                }
+                return sumNode;
+            }
+            else if(token.type == 'identifier' && token.value == 'frac'){
+                Tokenizer.expect(tokens[pos + 1]).toBe(TokenType.Oparen);
+                let fracTokens = tokens.slice(pos + 2,Tokenizer.findMatchingCParen(tokens,pos+2))
+                let [numeratorTokens,denominatorTokens] = Tokenizer.splitAtTopLevelCommas(fracTokens);
+                let numeratorNode = Parser.parseExpression(numeratorTokens);
+                let denominatorNode = Parser.parseExpression(denominatorTokens);
+                let fracNode: FractionNode = {
+                    type: 'fraction',
+                    numerator: numeratorNode,
+                    denominator: denominatorNode,
+                }
+                return fracNode;
+            }
+        }
+        return {
+            type: 'identifier',
+            name: tokens.map(t => t.value).join(''),
+
+        } as IdentiferNode;
+        
+    }
+        
+
+
 
 }
 
@@ -106,11 +297,20 @@ enum NodeType {
 
 interface Node {
     type: string;
+    children?: Node[];
+}
+
+interface ErrorNode extends Node {
+    type: 'Error';
+}
+
+export interface RootNode extends Node {
+    type: 'root';
+    children: Node[];
 }
 
 interface ExpressionNode extends Node {
-    type: 'plus' | 'fraction' | 'identifier';
-    value: string;
+    type: 'plus' | 'fraction' | 'identifier' | 'sum' | 'equation';
 }
 
 interface IdentiferNode extends ExpressionNode {
@@ -123,30 +323,30 @@ interface ParagraphNode extends Node {
     content: string;
 }
 
-interface EquationNode extends Node {
+interface EquationNode extends ExpressionNode {
     type: 'equation';
-    lhs: Node,
-    rhs: Node,
+    lhs: ExpressionNode,
+    rhs: ExpressionNode,
 }
 
 
-interface SumNode extends Node {
+interface SumNode extends ExpressionNode {
     type: 'sum';
-    start: EquationNode;
+    start: ExpressionNode;
     end:ExpressionNode;
     body: ExpressionNode;
 }
 
 interface PlusNode extends ExpressionNode {
     type: 'plus';
-    left: Node;
-    right: Node;
+    left: ExpressionNode;
+    right: ExpressionNode;
 }
 
 interface FractionNode extends ExpressionNode {
     type: 'fraction';
-    numerator: Node;
-    denominator: Node;
+    numerator: ExpressionNode;
+    denominator: ExpressionNode;
 }
 
 

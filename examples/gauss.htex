@@ -1,1 +1,4 @@
-sum(i = 1,n,i) = frac(n(n+1),2)
+The following describes the Gaussian Sum Equation
+it is the following identity:
+
+sum(i = 0,n,i) = frac(n(n+1),2)
