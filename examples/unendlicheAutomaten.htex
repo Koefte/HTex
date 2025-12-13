@@ -1,0 +1,15 @@
+überschrift(unendliche Automaten)
+
+Ein unendlicher Automat ist ein Tupel
+
+M = (Sigma,phi,A,delta,E,r)
+
+wobei:
+    - Sigma das Eingabealphabet ist.
+    - phi die Menge aller Abbildungen mathe(R) -> mathe(R) ist.
+    - A die Menge aller Abbildungen a: mathe(R) -> {0,1} ist.
+    - delta: A x Sigma -> phi die Übergangsfunktion ist.
+    -E Teilmenge A die Menge der Endzustände ist
+    -r element R der Anfangswert ist.
+    Dabei werden die Werte {0,1} als Wahrheitswerte interpretriert.
+

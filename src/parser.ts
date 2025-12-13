@@ -58,6 +58,44 @@ export class Parser {
             else if(token.type == 'open_paren'){
                 balance++;
             }
+            else if(token.type == 'identifier' && token.value == 'überschrift' && balance == 0){
+                // Flush any accumulated paragraph text before processing heading
+                if(accumulatedTokens.length > 0){
+                    const paragraphContent = accumulatedTokens.map(t => t.value).join('').trim();
+                    if(paragraphContent.length > 0){
+                        const paragraphNode: ParagraphNode = {
+                            type: 'paragraph',
+                            content: paragraphContent,
+                        }
+                        children.push(paragraphNode);
+                    }
+                    accumulatedTokens = [];
+                }
+                
+                // Parse überschrift(content)
+                this.position++; // Move past 'überschrift'
+                if(this.position >= this.tokens.length || this.tokens[this.position].type != 'open_paren'){
+                    throw new Error('Expected opening parenthesis after überschrift');
+                }
+                this.position++; // Move past '('
+                
+                let headingTokens: Token[] = [];
+                let parenDepth = 1;
+                while(this.position < this.tokens.length && parenDepth > 0){
+                    const t = this.tokens[this.position];
+                    if(t.type == 'open_paren') parenDepth++;
+                    else if(t.type == 'close_paren') {
+                        parenDepth--;
+                        if(parenDepth === 0) break;
+                    }
+                    headingTokens.push(t);
+                    this.position++;
+                }
+                
+                const headingContent = headingTokens.map(t => t.value).join('').trim();
+                children.push({ type: 'heading', content: headingContent } as HeadingNode);
+                // position is now at the closing paren, will be incremented at end of loop
+            }
             else if(token.type == 'equals' && balance == 0){
                 // Remove tokens from the current line that were accumulated
                 let lineStartIdx = accumulatedTokens.length;
@@ -113,6 +151,34 @@ export class Parser {
                     this.position++;
                 } else {
                     // Single newline - add it to paragraph tokens (will become a space)
+                    accumulatedTokens.push(token);
+                }
+            }
+            else if(token.type == 'identifier' && token.value == 'mathe'){
+                // Check if next token is open paren for inline math
+                if(this.position + 1 < this.tokens.length && this.tokens[this.position + 1].type == 'open_paren'){
+                    // This is inline math, add special marker to accumulated tokens
+                    accumulatedTokens.push({ type: 'identifier' as TokenType, value: '$$MATHSTART$$', position: token.position });
+                    this.position++; // Skip 'mathe'
+                    this.position++; // Skip '('
+                    
+                    let mathTokens: Token[] = [];
+                    let parenDepth = 1;
+                    while(this.position < this.tokens.length && parenDepth > 0){
+                        const t = this.tokens[this.position];
+                        if(t.type == 'open_paren') parenDepth++;
+                        else if(t.type == 'close_paren') {
+                            parenDepth--;
+                            if(parenDepth === 0) break;
+                        }
+                        mathTokens.push(t);
+                        this.position++;
+                    }
+                    
+                    accumulatedTokens.push(...mathTokens);
+                    accumulatedTokens.push({ type: 'identifier' as TokenType, value: '$$MATHEND$$', position: this.position });
+                    // position is now at the closing paren, will be incremented at end of loop
+                } else {
                     accumulatedTokens.push(token);
                 }
             }
@@ -307,6 +373,7 @@ enum NodeType {
     Plus = 'plus',
     Fraction = 'fraction',
     Expression = 'expression',
+    Heading = 'heading',
 }
 
 export interface Node {
@@ -332,6 +399,16 @@ export interface IdentiferNode extends ExpressionNode {
 
 export interface ParagraphNode extends Node {
     type: 'paragraph';
+    content: string;
+}
+
+export interface HeadingNode extends Node {
+    type: 'heading';
+    content: string;
+}
+
+export interface InlineMathNode extends Node {
+    type: 'inline_math';
     content: string;
 }
 

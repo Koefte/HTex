@@ -25,6 +25,7 @@ const tokenizer = new Tokenizer(fileContent);
 const tokens: Token[] = tokenizer.tokenize();
 const parser = new Parser(tokens);
 const ast: RootNode = parser.parse();
+Parser.printNode(ast); // For debugging
 const transpiler = new Transpiler(ast);
 const latex = transpiler.transpile();
 

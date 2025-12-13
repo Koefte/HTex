@@ -10,6 +10,11 @@ enum TokenType {
     Plus = 'plus',
     Whitespace = 'whitespace',
     Colon = 'colon',
+    Arrow = 'arrow',
+    OpenBrace = 'open_brace',
+    CloseBrace = 'close_brace',
+    Multiply = 'multiply',
+    Minus = 'minus',
     Unknown = 'unknown',
 }
 
@@ -167,6 +172,35 @@ class Tokenizer {
     private matchToken(): Token | null {
         const char = this.input[this.position];
 
+        // Check for arrow ->
+        if (char === '-' && this.position + 1 < this.input.length && this.input[this.position + 1] === '>') {
+            const pos = this.position;
+            this.position += 2;
+            return { type: TokenType.Arrow, value: '->', position: pos };
+        }
+
+        if (char === '-') {
+            return { type: TokenType.Minus, value: '-', position: this.position++ };
+        }
+
+        if (char === '{') {
+            return { type: TokenType.OpenBrace, value: '{', position: this.position++ };
+        }
+
+        if (char === '}') {
+            return { type: TokenType.CloseBrace, value: '}', position: this.position++ };
+        }
+
+        if (char === 'x' && this.position > 0 && this.position + 1 < this.input.length) {
+            const before = this.input[this.position - 1];
+            const after = this.input[this.position + 1];
+            // Check if x is used as multiplication (surrounded by spaces or identifiers)
+            if ((before === ' ' || this.isIdentifierChar(before)) && 
+                (after === ' ' || this.isIdentifierStart(after))) {
+                return { type: TokenType.Multiply, value: 'x', position: this.position++ };
+            }
+        }
+
         if (char == ',') {
             return { type: TokenType.Comma, value: ',', position: this.position++ };
         }
@@ -236,7 +270,8 @@ class Tokenizer {
     }
 
     private isIdentifierStart(char: string): boolean {
-        return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || char === '_';
+        return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || char === '_' || 
+               char === 'ü' || char === 'Ü' || char === 'ä' || char === 'Ä' || char === 'ö' || char === 'Ö' || char === 'ß';
     }
 
     private isIdentifierChar(char: string): boolean {
