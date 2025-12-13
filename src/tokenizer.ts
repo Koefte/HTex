@@ -15,6 +15,8 @@ enum TokenType {
     CloseBrace = 'close_brace',
     Multiply = 'multiply',
     Minus = 'minus',
+    Slash = 'slash',
+    Backslash = 'backslash',
     Unknown = 'unknown',
 }
 
@@ -211,6 +213,14 @@ class Tokenizer {
 
         if(char == '+') {
             return { type: TokenType.Plus, value: '+', position: this.position++ };
+        }
+
+        if(char == '/') {
+            return { type: TokenType.Slash, value: '/', position: this.position++ };
+        }
+
+        if(char == '\\') {
+            return { type: TokenType.Backslash, value: '\\', position: this.position++ };
         }
 
         if(char == '(') {

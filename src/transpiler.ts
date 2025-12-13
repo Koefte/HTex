@@ -10,19 +10,19 @@ export class Transpiler {
     public transpile(): string {
         let content = "";
         for(const child of this.root.children){
-            switch(child.type){
-                case 'equation':
-                    content += this.transpileEquation(child as EquationNode);
-                    break;
-                case 'paragraph':
-                    content += this.transpileParagraph(child as ParagraphNode);
-                    break;
-                case 'heading':
-                    content += this.transpileHeading(child as HeadingNode);
-                    break;
-                default:
-                    throw new Error(`Unknown node type: ${child.type}`);
-            }
+                switch(child.type){
+                    case 'equation':
+                        content += this.transpileEquation(child as EquationNode);
+                        break;
+                    case 'paragraph':
+                        content += this.transpileParagraph(child as ParagraphNode);
+                        break;
+                    case 'heading':
+                        content += this.transpileHeading(child as HeadingNode);
+                        break;
+                    default:
+                        throw new Error(`Unknown node type: ${child.type}`);
+                }
         }
         
         // Wrap with document class and begin/end document
@@ -156,12 +156,74 @@ export class Transpiler {
         return result;
     }
 
+    // Apply /italic/ markers outside math mode
+    private applyInlineItalics(text: string): string {
+        let result = '';
+        let buffer = '';
+        let inMath = false;
+
+        const flushBuffer = () => {
+            if (buffer.length === 0) return;
+            const replaced = buffer.replace(/\\([^\\\n]+)\\/g, '\\textit{$1}');
+            result += replaced;
+            buffer = '';
+        };
+
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (ch === '$') {
+                flushBuffer();
+                result += ch;
+                inMath = !inMath;
+            } else {
+                buffer += ch;
+            }
+        }
+        flushBuffer();
+        return result;
+    }
+
+    // Detect whether a brace is the argument delimiter of a LaTeX command so it should not be escaped
+    private isBracePartOfCommand(text: string, index: number): boolean {
+        let i = index - 1;
+        while (i >= 0 && /[a-zA-Z]/.test(text[i])) {
+            i--;
+        }
+        return i >= 0 && text[i] === '\\';
+    }
+
+    // Escape braces that are literal text, but leave math and LaTeX command arguments intact
+    private escapeBracesOutsideMath(text: string): string {
+        let inMath = false;
+        let escaped = '';
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            if (char === '$') {
+                inMath = !inMath;
+                escaped += char;
+            } else if ((char === '{' || char === '}') && !inMath) {
+                if (this.isBracePartOfCommand(text, i)) {
+                    escaped += char;
+                } else {
+                    escaped += '\\' + char;
+                }
+            } else {
+                escaped += char;
+            }
+        }
+        return escaped;
+    }
+
     private transpileParagraph(node: ParagraphNode): string {
         let text = node.content;
         
         // Replace inline math markers
         text = text.replace(/\$\$MATHSTART\$\$/g, '$');
         text = text.replace(/\$\$MATHEND\$\$/g, '$');
+        // Apply /.../ italics outside math
+        text = this.applyInlineItalics(text);
+        // Replace inline italic markers
+        text = text.replace(/\$\$ITALICSTART\$\$(.*?)\$\$ITALICEND\$\$/gs, (_m, inner) => `\\textit{${inner}}`);
         
         // Check if this is a list (contains lines starting with -)
         const lines = text.split('\n');
@@ -179,32 +241,21 @@ export class Transpiler {
                         result += '\\begin{itemize}\n';
                         inItemize = true;
                     }
-                    const itemText = trimmed.substring(1).trim();
+                    const itemText = this.applyInlineItalics(trimmed.substring(1).trim());
                     let processedItem = this.replaceGreekLettersInText(itemText);
                     // Replace special symbols with math mode
                     processedItem = processedItem.replace(/->/g, '$\\to$');
                     processedItem = processedItem.replace(/\bx\b/g, '$\\times$');
-                    // Escape braces that aren't part of math mode
-                    let inMath = false;
-                    let escaped = '';
-                    for (let i = 0; i < processedItem.length; i++) {
-                        const char = processedItem[i];
-                        if (char === '$') {
-                            inMath = !inMath;
-                            escaped += char;
-                        } else if ((char === '{' || char === '}') && !inMath) {
-                            escaped += '\\' + char;
-                        } else {
-                            escaped += char;
-                        }
-                    }
-                    result += `  \\item ${escaped}\n`;
+                    processedItem = this.escapeBracesOutsideMath(processedItem);
+                    result += `  \\item ${processedItem}\n`;
                 } else if (trimmed.length > 0) {
                     if (inItemize) {
                         result += '\\end{itemize}\n';
                         inItemize = false;
                     }
-                    result += `\\text{${this.replaceGreekLettersInText(trimmed)}}\n`;
+                    let body = this.replaceGreekLettersInText(trimmed);
+                    body = this.escapeBracesOutsideMath(body);
+                    result += `${body}\n`;
                 }
             }
             
@@ -216,7 +267,8 @@ export class Transpiler {
         } else {
             // Process as regular paragraph - wrap Greek letters and symbols in math mode
             let processed = this.replaceGreekLettersInText(text);
-            return `\\text{${processed}}\n\n`;
+            processed = this.escapeBracesOutsideMath(processed);
+            return `${processed}\n\n`;
         }
     }
 

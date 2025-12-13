@@ -154,15 +154,19 @@ export class Parser {
                     accumulatedTokens.push(token);
                 }
             }
-            else if(token.type == 'identifier' && token.value == 'mathe'){
-                // Check if next token is open paren for inline math
+            else if(token.type == 'identifier' && (token.value == 'mathe' || token.value == 'kursiv')){
+                // Handle inline constructs mathe(...) and kursiv(...)
                 if(this.position + 1 < this.tokens.length && this.tokens[this.position + 1].type == 'open_paren'){
-                    // This is inline math, add special marker to accumulated tokens
-                    accumulatedTokens.push({ type: 'identifier' as TokenType, value: '$$MATHSTART$$', position: token.position });
-                    this.position++; // Skip 'mathe'
+                    const isMath = token.value == 'mathe';
+                    const startMarker = isMath ? '$$MATHSTART$$' : '$$ITALICSTART$$';
+                    const endMarker = isMath ? '$$MATHEND$$' : '$$ITALICEND$$';
+
+                    // Insert start marker
+                    accumulatedTokens.push({ type: 'identifier' as TokenType, value: startMarker, position: token.position });
+                    this.position++; // Skip identifier
                     this.position++; // Skip '('
                     
-                    let mathTokens: Token[] = [];
+                    let innerTokens: Token[] = [];
                     let parenDepth = 1;
                     while(this.position < this.tokens.length && parenDepth > 0){
                         const t = this.tokens[this.position];
@@ -171,12 +175,13 @@ export class Parser {
                             parenDepth--;
                             if(parenDepth === 0) break;
                         }
-                        mathTokens.push(t);
+                        innerTokens.push(t);
                         this.position++;
                     }
                     
-                    accumulatedTokens.push(...mathTokens);
-                    accumulatedTokens.push({ type: 'identifier' as TokenType, value: '$$MATHEND$$', position: this.position });
+                    accumulatedTokens.push(...innerTokens);
+                    // Insert end marker
+                    accumulatedTokens.push({ type: 'identifier' as TokenType, value: endMarker, position: this.position });
                     // position is now at the closing paren, will be incremented at end of loop
                 } else {
                     accumulatedTokens.push(token);
@@ -262,9 +267,7 @@ export class Parser {
             }
             case 'paragraph': {
                 const n = node as ParagraphNode;
-                const content = (n.content || '').replace(/\r/g, '');
-                const preview = content.length > 80 ? content.slice(0, 77) + '...' : content;
-                console.log(`${indent}paragraph: "${preview}"`);
+                console.log(`${indent}paragraph: "${n.content}"`);
                 break;
             }
             default: {
