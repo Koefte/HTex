@@ -59,9 +59,20 @@ export class Parser {
                 balance++;
             }
             else if(token.type == 'equals' && balance == 0){
+                // Remove tokens from the current line that were accumulated
+                let lineStartIdx = accumulatedTokens.length;
+                for (let i = accumulatedTokens.length - 1; i >= 0; i--) {
+                    if (accumulatedTokens[i].type === 'newline') {
+                        lineStartIdx = i + 1;
+                        break;
+                    }
+                }
+                // Keep only tokens before the current line
+                const paragraphTokens = accumulatedTokens.slice(0, lineStartIdx);
+                
                 // Flush any accumulated paragraph text before processing equation
-                if(accumulatedTokens.length > 0){
-                    const paragraphContent = accumulatedTokens.map(t => t.value).join('').trim();
+                if(paragraphTokens.length > 0){
+                    const paragraphContent = paragraphTokens.map(t => t.value).join('').trim();
                     if(paragraphContent.length > 0){
                         const paragraphNode: ParagraphNode = {
                             type: 'paragraph',
@@ -69,8 +80,8 @@ export class Parser {
                         }
                         children.push(paragraphNode);
                     }
-                    accumulatedTokens = [];
                 }
+                accumulatedTokens = [];
                 
                 let line = [];
                 let j = this.position;
@@ -100,6 +111,9 @@ export class Parser {
                     }
                     // Skip the second newline to avoid empty paragraphs
                     this.position++;
+                } else {
+                    // Single newline - add it to paragraph tokens (will become a space)
+                    accumulatedTokens.push(token);
                 }
             }
             else {
@@ -295,55 +309,53 @@ enum NodeType {
     Expression = 'expression',
 }
 
-interface Node {
+export interface Node {
     type: string;
     children?: Node[];
 }
 
-interface ErrorNode extends Node {
-    type: 'Error';
-}
+
 
 export interface RootNode extends Node {
     type: 'root';
     children: Node[];
 }
 
-interface ExpressionNode extends Node {
+export interface ExpressionNode extends Node {
     type: 'plus' | 'fraction' | 'identifier' | 'sum' | 'equation';
 }
 
-interface IdentiferNode extends ExpressionNode {
+export interface IdentiferNode extends ExpressionNode {
     type: 'identifier';
     name: string;
 }
 
-interface ParagraphNode extends Node {
+export interface ParagraphNode extends Node {
     type: 'paragraph';
     content: string;
 }
 
-interface EquationNode extends ExpressionNode {
+export interface EquationNode extends ExpressionNode {
     type: 'equation';
     lhs: ExpressionNode,
     rhs: ExpressionNode,
 }
 
 
-interface SumNode extends ExpressionNode {
+export interface SumNode extends ExpressionNode {
     type: 'sum';
     start: ExpressionNode;
     end:ExpressionNode;
     body: ExpressionNode;
 }
 
-interface PlusNode extends ExpressionNode {
+export interface PlusNode extends ExpressionNode {
     type: 'plus';
     left: ExpressionNode;
     right: ExpressionNode;
 }
 
-interface FractionNode extends ExpressionNode {
+export interface FractionNode extends ExpressionNode {
     type: 'fraction';
     numerator: ExpressionNode;
     denominator: ExpressionNode;
