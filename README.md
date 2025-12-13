@@ -1,22 +1,26 @@
-# TypeScript Hello World → PDF
+# HTex → LaTeX transpiler
 
-This tiny project generates a PDF with the text "Hello, World!" using `pdfkit`.
+Convert `.htex` files to `.tex` using a minimal TypeScript CLI.
 
-## Quick Start (Windows PowerShell)
-
+## Quick start (Windows PowerShell)
 ```powershell
-# From the project root
 npm install
 npm run build
-npm start
-# The PDF will be at .\out\hello.pdf
+npm start examples/gauss.htex   # writes out/gauss.tex
 ```
 
-### Dev run without build
+### Dev mode
 ```powershell
-npm run dev
+npm run dev examples/gauss.htex
 ```
 
-## Notes
-- Output is written to `out/hello.pdf`.
-- Change the message in `src/index.ts`.
+## Features
+- Headings via `überschrift(...)`
+- Paragraphs with inline math `mathe(...)`
+- Equations, sums, fractions, plus
+- Greek letters, subset/element, arrows, multiplication symbol
+- Lists: lines starting with `-` become `itemize`
+- Auto document wrapper (`article`, utf8, amsmath, amssymb)
+
+## Output
+- LaTeX files are written to `out/<name>.tex` matching the input basename.
