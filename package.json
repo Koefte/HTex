@@ -1,0 +1,19 @@
+{
+  "name": "htex-pdf-hello",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "pdfkit": "0.14.0"
+  },
+  "devDependencies": {
+    "ts-node": "10.9.2",
+    "typescript": "5.6.3",
+    "@types/pdfkit": "0.12.9"
+  }
+}
