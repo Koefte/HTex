@@ -255,10 +255,20 @@ export class Transpiler {
             // Process as list
             let result = '';
             let inItemize = false;
+            let textLines: string[] = [];
             
             for (const line of lines) {
                 const trimmed = line.trim();
                 if (trimmed.startsWith('-')) {
+                    // Flush accumulated text lines before starting list
+                    if (textLines.length > 0) {
+                        for (let i = 0; i < textLines.length; i++) {
+                            const lineBreak = i < textLines.length - 1 ? '\\newline' : '';
+                            result += `${textLines[i]}${lineBreak}\n`;
+                        }
+                        textLines = [];
+                    }
+                    
                     if (!inItemize) {
                         result += '\\begin{itemize}\n';
                         inItemize = true;
@@ -277,7 +287,15 @@ export class Transpiler {
                     }
                     let body = this.replaceGreekLettersInText(trimmed);
                     body = this.escapeBracesOutsideMath(body);
-                    result += `\\text{${body}}\n`;
+                    textLines.push(body);
+                }
+            }
+            
+            // Flush any remaining text lines
+            if (textLines.length > 0) {
+                for (let i = 0; i < textLines.length; i++) {
+                    const lineBreak = i < textLines.length - 1 ? '\\newline' : '';
+                    result += `${textLines[i]}${lineBreak}\n`;
                 }
             }
             
@@ -287,10 +305,18 @@ export class Transpiler {
             
             return result + '\n';
         } else {
-            // Process as regular paragraph - wrap Greek letters and symbols in math mode
-            let processed = this.replaceGreekLettersInText(text);
-            processed = this.escapeBracesOutsideMath(processed);
-            return `\\text{${processed}}\n\n`;
+            // Process as regular paragraph - add explicit line breaks
+            const lines = text.split('\n');
+            let result = '';
+            const nonEmptyLines = lines.filter(line => line.trim().length > 0);
+            for (let i = 0; i < nonEmptyLines.length; i++) {
+                const trimmed = nonEmptyLines[i].trim();
+                let processed = this.replaceGreekLettersInText(trimmed);
+                processed = this.escapeBracesOutsideMath(processed);
+                const lineBreak = i < nonEmptyLines.length - 1 ? '\\newline' : '';
+                result += `${processed}${lineBreak}\n`;
+            }
+            return result + '\n';
         }
     }
 
