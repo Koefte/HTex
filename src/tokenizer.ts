@@ -17,6 +17,8 @@ enum TokenType {
     Minus = 'minus',
     Slash = 'slash',
     Backslash = 'backslash',
+    Exponent = 'exponent',
+    Asterisk = 'asterisk',
     Unknown = 'unknown',
 }
 
@@ -181,6 +183,9 @@ class Tokenizer {
             return { type: TokenType.Arrow, value: '->', position: pos };
         }
 
+        if (char === '^') {
+            return { type: TokenType.Exponent, value: '^', position: this.position++ };
+        }
         if (char === '-') {
             return { type: TokenType.Minus, value: '-', position: this.position++ };
         }
@@ -221,6 +226,10 @@ class Tokenizer {
 
         if(char == '\\') {
             return { type: TokenType.Backslash, value: '\\', position: this.position++ };
+        }
+
+        if(char == '*') {
+            return { type: TokenType.Asterisk, value: '*', position: this.position++ };
         }
 
         if(char == '(') {

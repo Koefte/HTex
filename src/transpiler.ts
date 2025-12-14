@@ -156,7 +156,7 @@ export class Transpiler {
         return result;
     }
 
-    // Apply /italic/ markers outside math mode
+    // Apply \italic\ and *emphasis* markers outside math mode
     private applyInlineItalics(text: string): string {
         let result = '';
         let buffer = '';
@@ -164,7 +164,10 @@ export class Transpiler {
 
         const flushBuffer = () => {
             if (buffer.length === 0) return;
-            const replaced = buffer.replace(/\\([^\\\n]+)\\/g, '\\textit{$1}');
+            // Apply \text\ -> \textit{text}
+            let replaced = buffer.replace(/\\([^\\\n]+)\\/g, '\\textit{$1}');
+            // Apply *text* -> \emph{text}
+            replaced = replaced.replace(/\*([^*\n]+)\*/g, '\\emph{$1}');
             result += replaced;
             buffer = '';
         };
@@ -183,27 +186,46 @@ export class Transpiler {
         return result;
     }
 
-    // Detect whether a brace is the argument delimiter of a LaTeX command so it should not be escaped
-    private isBracePartOfCommand(text: string, index: number): boolean {
-        let i = index - 1;
-        while (i >= 0 && /[a-zA-Z]/.test(text[i])) {
-            i--;
-        }
-        return i >= 0 && text[i] === '\\';
-    }
-
     // Escape braces that are literal text, but leave math and LaTeX command arguments intact
     private escapeBracesOutsideMath(text: string): string {
         let inMath = false;
         let escaped = '';
+        let braceDepth = 0;
+        
         for (let i = 0; i < text.length; i++) {
             const char = text[i];
             if (char === '$') {
                 inMath = !inMath;
                 escaped += char;
-            } else if ((char === '{' || char === '}') && !inMath) {
-                if (this.isBracePartOfCommand(text, i)) {
+            } else if (char === '\\' && !inMath && i + 1 < text.length) {
+                // Found backslash - check if it's a LaTeX command
+                let j = i + 1;
+                while (j < text.length && /[a-zA-Z]/.test(text[j])) {
+                    j++;
+                }
+                if (j > i + 1) {
+                    // It's a command like \textit or \emph
+                    escaped += text.substring(i, j);
+                    i = j - 1;
+                } else {
                     escaped += char;
+                }
+            } else if (char === '{' && !inMath) {
+                // Check if previous non-whitespace is a command
+                let k = i - 1;
+                while (k >= 0 && text[k] === ' ') k--;
+                if (k >= 0 && /[a-zA-Z]/.test(text[k])) {
+                    // Likely a command argument brace
+                    escaped += char;
+                    braceDepth++;
+                } else {
+                    escaped += '\\' + char;
+                }
+            } else if (char === '}' && !inMath) {
+                if (braceDepth > 0) {
+                    // Closing a command argument
+                    escaped += char;
+                    braceDepth--;
                 } else {
                     escaped += '\\' + char;
                 }
@@ -255,7 +277,7 @@ export class Transpiler {
                     }
                     let body = this.replaceGreekLettersInText(trimmed);
                     body = this.escapeBracesOutsideMath(body);
-                    result += `${body}\n`;
+                    result += `\\text{${body}}\n`;
                 }
             }
             
@@ -268,7 +290,7 @@ export class Transpiler {
             // Process as regular paragraph - wrap Greek letters and symbols in math mode
             let processed = this.replaceGreekLettersInText(text);
             processed = this.escapeBracesOutsideMath(processed);
-            return `${processed}\n\n`;
+            return `\\text{${processed}}\n\n`;
         }
     }
 

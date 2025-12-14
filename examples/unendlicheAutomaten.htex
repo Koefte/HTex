@@ -1,24 +1,6 @@
-überschrift(Unendliche Automaten)
-
-Ein unendlicher Automat wird beschrieben durch ein Tupel
- 	M = (Sigma,phi,A,delta,E,r)
--	Sigma beschreibt das Eingabealphabet auf dem der Automat arbeitet
--	phi beschreibt die Menge der Abbildungen R -> R , die den neuen Wert des Automaten bestimmen
--	A beschreibt die Menge der Abbildungen R -> {0,1} , welche die Zustände des Automaten modellieren *
--	Delta ist die Übergangsfunktion A X Sigma -> phi, welche einem Zustand und einem Wert die Abbildung ,die den nächsten Wert bestimmt zuordnet
--	E Teilmenge A ist die Menge, die die Endzustände beschreibt
--	r aus R beschreibt den Anfangswert
-
-
-(*) {0,1} werden im Folgenden äquivalent zu Wahrheitswerten genutzt.
-
-
-
-
- 
-
-
-
-
-
+Das hier ist inline mathe(x = x^2) es ist ganz doll inline.
+Das hier ist *emphasized* es ist ganz doll emphasized
+Das hier ist eine Liste 
+-Listenelement 1
+-Listenelement 2
  
