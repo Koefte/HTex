@@ -96,7 +96,7 @@ export class Parser {
                 children.push({ type: 'heading', content: headingContent } as HeadingNode);
                 // position is now at the closing paren, will be incremented at end of loop
             }
-            else if(token.type == 'equals' && balance == 0){
+            else if(token.type == 'equals' && balance == 0 && this.tokens[this.position - 1]?.type != 'escape'){
                 // Remove tokens from the current line that were accumulated
                 let lineStartIdx = accumulatedTokens.length;
                 for (let i = accumulatedTokens.length - 1; i >= 0; i--) {
@@ -188,7 +188,10 @@ export class Parser {
                 }
             }
             else {
-                accumulatedTokens.push(token);
+                // Don't accumulate escape tokens ($ symbols) - they're only used to escape equals signs
+                if(token.type != 'escape'){
+                    accumulatedTokens.push(token);
+                }
             }
             this.position++;
         }

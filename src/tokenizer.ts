@@ -20,6 +20,7 @@ enum TokenType {
     Exponent = 'exponent',
     Asterisk = 'asterisk',
     Unknown = 'unknown',
+    Escape = 'escape'
 }
 
 interface Token {
@@ -196,6 +197,10 @@ class Tokenizer {
 
         if (char === '}') {
             return { type: TokenType.CloseBrace, value: '}', position: this.position++ };
+        }
+
+        if(char == "$"){
+            return { type: TokenType.Escape, value: '$', position: this.position++ };
         }
 
         if (char === 'x' && this.position > 0 && this.position + 1 < this.input.length) {
